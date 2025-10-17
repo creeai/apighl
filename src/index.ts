@@ -70,8 +70,8 @@ app.use(securityHeaders);
 // CORS restritivo
 app.use(cors(corsOptions));
 
-// Rate limiting global
-app.use(rateLimiter);
+// RATE LIMITING DESABILITADO - CAUSA CONFLITOS
+// app.use(rateLimiter);
 
 // Validação de tamanho de payload
 app.use(validatePayloadSize);
@@ -126,7 +126,7 @@ console.log('================================');
 
 // Rota intermediária para capturar instanceName antes do OAuth
 app.get("/authorize-start", 
-  authRateLimiter, // Rate limiting para autenticação
+  // authRateLimiter, // RATE LIMITING DESABILITADO
   async (req: Request, res: Response) => {
   try {
     const { instanceName, n8nWebhookUrl } = req.query;
@@ -177,7 +177,7 @@ app.get("/authorize-start",
 });
 
 app.get("/authorize-handler", 
-  authRateLimiter, // Rate limiting para autenticação
+  // authRateLimiter, // RATE LIMITING DESABILITADO
   async (req: Request, res: Response) => {
   try {
   const { code } = req.query;
@@ -593,7 +593,7 @@ app.get("/example-api-call-location",
 
 // Webhook handler refatorado com segurança
 app.post("/webhook/ghl", 
-  webhookRateLimiter, // Rate limiting específico para webhooks
+  // webhookRateLimiter, // RATE LIMITING DESABILITADO
   ghlCredentialsValidator.validateGHLWebhook, // Valida credenciais GHL do banco
   async (req: Request, res: Response) => {
       try {
@@ -803,6 +803,12 @@ app.post("/webhook/ghl",
         
         if (result.success) {
           console.log("✅ Mensagem enviada com sucesso via Evolution API");
+          console.log("📤 DETALHES DO ENVIO:");
+          console.log("📤 LocationId:", locationId);
+          console.log("📤 ContactId:", contactId);
+          console.log("📤 MessageId:", req.body.messageId);
+          console.log("📤 Mensagem:", message);
+          console.log("📤 Resultado:", result);
           
           // ✅ NOVO: Enviar dados para N8N se webhook configurado (OUTBOUND)
           console.log(`🔍 Verificando webhook N8N para locationId: ${locationId}`);
@@ -1164,7 +1170,7 @@ async function processOutboundMessageFromWhatsApp(
 
 // Webhook handler da Evolution API refatorado com segurança
 app.post("/webhook/evolution", 
-  webhookRateLimiter, // Rate limiting específico para webhooks
+  // webhookRateLimiter, // RATE LIMITING DESABILITADO
   async (req: Request, res: Response) => {
     try {
       // ✅ NOVO: Log detalhado do webhook recebido
@@ -1420,6 +1426,13 @@ app.post("/webhook/evolution",
           
           if (result.success) {
             console.log(`✅ Mensagem processada com sucesso para a instância correta: ${instanceName} -> ${resourceId}`);
+            console.log("📥 DETALHES DA MENSAGEM RECEBIDA:");
+            console.log("📥 Instância:", instanceName);
+            console.log("📥 ResourceId:", resourceId);
+            console.log("📥 Telefone:", req.body.key?.remoteJid);
+            console.log("📥 Mensagem:", inboundMessageText);
+            console.log("📥 PushName:", pushName);
+            console.log("📥 Resultado:", result);
             
             // ✅ NOVO: Enviar dados para N8N se webhook configurado (INBOUND)
             console.log(`🔍 Verificando webhook N8N para instância: ${instanceName}`);
