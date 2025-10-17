@@ -329,6 +329,115 @@ app.post("/integration/sync-contacts",
   }
 });
 
+// ✅ NOVO: Endpoint para configurar webhook N8N
+app.post("/integration/setup-n8n-webhook", 
+  ghlCredentialsValidator.validateGHLCredentials, // Requer credenciais GHL válidas
+  async (req: Request, res: Response) => {
+  try {
+    const { resourceId, n8nWebhookUrl } = req.body;
+    
+    if (!resourceId || !n8nWebhookUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Resource ID e N8N Webhook URL são obrigatórios'
+      });
+    }
+
+    // Validar URL do webhook
+    try {
+      new URL(n8nWebhookUrl);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: 'URL do webhook N8N inválida'
+      });
+    }
+
+    // Verificar se a instalação existe
+    const installationDetails = await ghl.model.getInstallationInfo(resourceId);
+    if (!installationDetails) {
+      return res.status(404).json({
+        success: false,
+        message: 'Instalação não encontrada'
+      });
+    }
+
+    // Atualizar webhook N8N no banco
+    await ghl.model.updateN8nWebhookUrl(resourceId, n8nWebhookUrl);
+    
+    console.log(`✅ Webhook N8N configurado para ${resourceId}: ${n8nWebhookUrl}`);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Webhook N8N configurado com sucesso',
+      data: { 
+        resourceId, 
+        n8nWebhookUrl,
+        instanceName: installationDetails.evolutionInstanceName,
+        locationId: installationDetails.locationId,
+        companyId: installationDetails.companyId
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('Erro ao configurar webhook N8N:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno ao configurar webhook N8N',
+      error: error.message
+    });
+  }
+});
+
+// ✅ NOVO: Endpoint para remover webhook N8N
+app.delete("/integration/remove-n8n-webhook", 
+  ghlCredentialsValidator.validateGHLCredentials, // Requer credenciais GHL válidas
+  async (req: Request, res: Response) => {
+  try {
+    const { resourceId } = req.body;
+    
+    if (!resourceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Resource ID é obrigatório'
+      });
+    }
+
+    // Verificar se a instalação existe
+    const installationDetails = await ghl.model.getInstallationInfo(resourceId);
+    if (!installationDetails) {
+      return res.status(404).json({
+        success: false,
+        message: 'Instalação não encontrada'
+      });
+    }
+
+    // Remover webhook N8N (definir como null)
+    await ghl.model.updateN8nWebhookUrl(resourceId, '');
+    
+    console.log(`✅ Webhook N8N removido para ${resourceId}`);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Webhook N8N removido com sucesso',
+      data: { 
+        resourceId,
+        instanceName: installationDetails.evolutionInstanceName,
+        locationId: installationDetails.locationId,
+        companyId: installationDetails.companyId
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('Erro ao remover webhook N8N:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno ao remover webhook N8N',
+      error: error.message
+    });
+  }
+});
+
 
 
 app.get("/integration/status", 
@@ -657,6 +766,46 @@ app.post("/webhook/ghl",
         
         if (result.success) {
           console.log("✅ Mensagem enviada com sucesso via Evolution API");
+          
+          // ✅ NOVO: Enviar dados para N8N se webhook configurado (OUTBOUND)
+          if (installationDetails.n8nWebhookUrl) {
+            try {
+              const n8nPayload = {
+                type: 'outbound',
+                direction: 'ghl_to_whatsapp',
+                locationId,
+                contactId,
+                phoneNumber,
+                message,
+                messageId: req.body.messageId,
+                instanceName: installationDetails.evolutionInstanceName,
+                timestamp: new Date().toISOString(),
+                status: 'delivered',
+                conversationProviderId: installationDetails.conversationProviderId,
+                companyId: installationDetails.companyId
+              };
+              
+              console.log(`📤 Enviando dados para N8N (OUTBOUND): ${installationDetails.n8nWebhookUrl}`);
+              
+              // Chamada assíncrona para N8N (não bloqueia o fluxo)
+              axios.post(installationDetails.n8nWebhookUrl, n8nPayload, {
+                timeout: 5000,
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'User-Agent': 'GHL-Evolution-Integration/2.0.0'
+                }
+              }).then(() => {
+                console.log(`✅ Dados enviados para N8N (OUTBOUND) com sucesso: ${locationId}`);
+              }).catch(error => {
+                console.error(`❌ Erro ao enviar dados para N8N (OUTBOUND):`, error.message);
+              });
+              
+            } catch (error: any) {
+              console.error(`❌ Erro ao preparar dados para N8N (OUTBOUND):`, error.message);
+            }
+          } else {
+            console.log(`ℹ️ Webhook N8N não configurado para locationId: ${locationId}`);
+          }
           
           // Atualizar status da mensagem para "delivered"
           let messageIdToUpdate = req.body.messageId;
@@ -1229,6 +1378,48 @@ app.post("/webhook/evolution",
           
           if (result.success) {
             console.log(`✅ Mensagem processada com sucesso para a instância correta: ${instanceName} -> ${resourceId}`);
+            
+            // ✅ NOVO: Enviar dados para N8N se webhook configurado (INBOUND)
+            if (targetInstallation.n8nWebhookUrl) {
+              try {
+                const n8nPayload = {
+                  type: 'inbound',
+                  direction: 'whatsapp_to_ghl',
+                  instanceName,
+                  resourceId,
+                  phoneNumber: inboundPhoneNumber,
+                  message: inboundMessageText,
+                  messageType,
+                  isMediaMessage,
+                  pushName,
+                  timestamp: new Date().toISOString(),
+                  ghlMessageId: result.data?.messageId,
+                  conversationProviderId: targetInstallation.conversationProviderId,
+                  evolutionInstanceName: targetInstallation.evolutionInstanceName
+                };
+                
+                console.log(`📤 Enviando dados para N8N (INBOUND): ${targetInstallation.n8nWebhookUrl}`);
+                
+                // Chamada assíncrona para N8N (não bloqueia o fluxo)
+                axios.post(targetInstallation.n8nWebhookUrl, n8nPayload, {
+                  timeout: 5000,
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'GHL-Evolution-Integration/2.0.0'
+                  }
+                }).then(() => {
+                  console.log(`✅ Dados enviados para N8N (INBOUND) com sucesso: ${instanceName}`);
+                }).catch(error => {
+                  console.error(`❌ Erro ao enviar dados para N8N (INBOUND):`, error.message);
+                });
+                
+              } catch (error: any) {
+                console.error(`❌ Erro ao preparar dados para N8N (INBOUND):`, error.message);
+              }
+            } else {
+              console.log(`ℹ️ Webhook N8N não configurado para instância: ${instanceName}`);
+            }
+            
             return res.status(200).json({
               success: true,
               message: "Mensagem processada e sincronizada com GHL para a subconta correta",

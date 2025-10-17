@@ -30,6 +30,7 @@ export interface InstallationDetails {
   updatedAt?: Date;
   clientId?: string;
   clientSecret?: string;
+  n8nWebhookUrl?: string;
 }
 
 export interface ContactInfo {
@@ -79,10 +80,11 @@ export class Model {
         last_sync_at,
         client_id,
         client_secret,
+        n8n_webhook_url,
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
       ON CONFLICT (location_id) DO UPDATE SET
         access_token = EXCLUDED.access_token,
         refresh_token = EXCLUDED.refresh_token,
@@ -96,6 +98,7 @@ export class Model {
         last_sync_at = EXCLUDED.last_sync_at,
         client_id = COALESCE(EXCLUDED.client_id, installations.client_id),
         client_secret = COALESCE(EXCLUDED.client_secret, installations.client_secret),
+        n8n_webhook_url = COALESCE(EXCLUDED.n8n_webhook_url, installations.n8n_webhook_url),
         updated_at = NOW();
     `;
 
@@ -113,7 +116,8 @@ export class Model {
       details.integrationStatus || IntegrationStatus.Active,
       details.lastSyncAt || new Date(),
       details.clientId || null,
-      details.clientSecret || null
+      details.clientSecret || null,
+      details.n8nWebhookUrl || null
     ];
 
     try {
@@ -154,7 +158,8 @@ export class Model {
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         clientId: row.client_id,
-        clientSecret: row.client_secret
+        clientSecret: row.client_secret,
+        n8nWebhookUrl: row.n8n_webhook_url
       };
     } catch (error) {
       console.error('Erro ao buscar detalhes da instalação no DB:', error);
@@ -269,7 +274,8 @@ export class Model {
         integrationStatus: row.integration_status,
         lastSyncAt: row.last_sync_at,
         createdAt: row.created_at,
-        updatedAt: row.updated_at
+        updatedAt: row.updated_at,
+        n8nWebhookUrl: row.n8n_webhook_url
       }));
     } catch (error) {
       console.error('Erro ao buscar integrações ativas:', error);
@@ -296,7 +302,8 @@ export class Model {
         integrationStatus: row.integration_status,
         lastSyncAt: row.last_sync_at,
         createdAt: row.created_at,
-        updatedAt: row.updated_at
+        updatedAt: row.updated_at,
+        n8nWebhookUrl: row.n8n_webhook_url
       }));
     } catch (error) {
       console.error('Erro ao buscar todas as instalações:', error);
@@ -331,7 +338,8 @@ export class Model {
         integrationStatus: row.integration_status,
         lastSyncAt: row.last_sync_at,
         createdAt: row.created_at,
-        updatedAt: row.updated_at
+        updatedAt: row.updated_at,
+        n8nWebhookUrl: row.n8n_webhook_url
       };
     } catch (error) {
       console.error('Erro ao buscar instalação por instanceName:', error);
@@ -358,6 +366,29 @@ export class Model {
       console.log(`✅ ConversationProviderId atualizado com sucesso para ${resourceId}`);
     } catch (error) {
       console.error('Erro ao atualizar conversationProviderId:', error);
+      throw error;
+    }
+  }
+
+  // ✅ NOVO: Método para atualizar webhook N8N
+  async updateN8nWebhookUrl(resourceId: string, n8nWebhookUrl: string): Promise<void> {
+    try {
+      console.log(`💾 Atualizando webhook N8N para ${resourceId}: ${n8nWebhookUrl}`);
+      
+      const result = await pool.query(
+        `UPDATE installations 
+         SET n8n_webhook_url = $1, updated_at = NOW() 
+         WHERE location_id = $2 OR company_id = $2`,
+        [n8nWebhookUrl, resourceId]
+      );
+      
+      if (result.rowCount === 0) {
+        throw new Error(`Instalação não encontrada para resourceId: ${resourceId}`);
+      }
+      
+      console.log(`✅ Webhook N8N atualizado com sucesso para ${resourceId}`);
+    } catch (error) {
+      console.error('Erro ao atualizar webhook N8N:', error);
       throw error;
     }
   }
