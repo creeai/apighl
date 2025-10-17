@@ -128,7 +128,7 @@ app.get("/authorize-start",
   authRateLimiter, // Rate limiting para autenticação
   async (req: Request, res: Response) => {
   try {
-    const { instanceName } = req.query;
+    const { instanceName, n8nWebhookUrl } = req.query;
     
     if (!instanceName) {
       return res.status(400).json({
@@ -139,13 +139,24 @@ app.get("/authorize-start",
 
     // Logs de autorização simplificados
     console.log(`🔐 Iniciando autorização com instanceName: ${instanceName}`);
+    if (n8nWebhookUrl) {
+      console.log(`🔗 Webhook N8N configurado: ${n8nWebhookUrl}`);
+    }
     
-    // Armazena o instanceName em um cookie temporário
+    // Armazena o instanceName e n8nWebhookUrl em cookies temporários
     res.cookie('tempInstanceName', instanceName, { 
       maxAge: 5 * 60 * 1000, // 5 minutos
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production'
     });
+    
+    if (n8nWebhookUrl) {
+      res.cookie('tempN8nWebhookUrl', n8nWebhookUrl, { 
+        maxAge: 5 * 60 * 1000, // 5 minutos
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production'
+      });
+    }
     
     // Redireciona para o OAuth do GHL
     const oauthUrl = `https://marketplace.leadconnectorhq.com/oauth/chooselocation?response_type=code&redirect_uri=${encodeURIComponent(process.env.GHL_APP_REDIRECT_URI || 'http://localhost:3000/authorize-handler')}&client_id=${process.env.GHL_APP_CLIENT_ID}&scope=conversations.write+conversations.readonly+conversations%2Fmessage.readonly+conversations%2Fmessage.write+contacts.readonly+contacts.write+locations.readonly`;
@@ -172,15 +183,40 @@ app.get("/authorize-handler",
     console.log("🔐 Handler de autorização chamado com code:", code);
     
   if (code) {
-      // Recupera o instanceName do cookie
+      // Recupera o instanceName e n8nWebhookUrl dos cookies
       const instanceName = req.cookies?.tempInstanceName || 'default';
+      const n8nWebhookUrl = req.cookies?.tempN8nWebhookUrl;
       console.log(`🔍 InstanceName recuperado do cookie: ${instanceName}`);
+      if (n8nWebhookUrl) {
+        console.log(`🔗 Webhook N8N recuperado do cookie: ${n8nWebhookUrl}`);
+      }
       
-      // Limpa o cookie temporário
+      // Limpa os cookies temporários
       res.clearCookie('tempInstanceName');
+      res.clearCookie('tempN8nWebhookUrl');
       
       // Passa o instanceName para o handler de autorização
       await ghl.authorizationHandler(code as string, instanceName);
+      
+      // ✅ NOVO: Se webhook N8N foi fornecido, configurar automaticamente
+      if (n8nWebhookUrl) {
+        try {
+          // Buscar a instalação recém-criada para obter o resourceId
+          const installationDetails = await ghl.model.getInstallationByInstanceName(instanceName);
+          if (installationDetails) {
+            const resourceId = installationDetails.locationId || installationDetails.companyId;
+            if (resourceId) {
+              // Configurar webhook N8N automaticamente
+              await ghl.model.updateN8nWebhookUrl(resourceId, n8nWebhookUrl);
+              console.log(`✅ Webhook N8N configurado automaticamente para ${resourceId}: ${n8nWebhookUrl}`);
+            }
+          }
+        } catch (error: any) {
+          console.error(`❌ Erro ao configurar webhook N8N automaticamente:`, error.message);
+          // Não falha a instalação se houver erro no webhook N8N
+        }
+      }
+      
       res.redirect("https://app.gohighlevel.com/");
   } else {
       res.status(400).send("Código de autorização ausente.");
