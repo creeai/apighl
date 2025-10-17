@@ -1,34 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
 
-// Configuração de Rate Limiting
-export const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // máximo 100 requests por IP
-  message: {
-    error: 'Muitas requisições deste IP, tente novamente em 15 minutos'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Rate Limiting específico para webhooks (mais restritivo)
-export const webhookRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 50, // máximo 50 webhooks por IP
-  message: {
-    error: 'Muitos webhooks deste IP, tente novamente em 15 minutos'
-  },
-});
-
-// Rate Limiting para autenticação (muito restritivo)
-export const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // máximo 5 tentativas de auth por IP
-  message: {
-    error: 'Muitas tentativas de autenticação, tente novamente em 15 minutos'
-  },
-});
+// RATE LIMITING COMPLETAMENTE REMOVIDO - CAUSA CONFLITOS
 
 // Configuração CORS restritiva
 export const corsOptions = {
@@ -57,10 +29,6 @@ export const corsOptions = {
   credentials: true,
   maxAge: 86400 // 24 horas
 };
-
-
-
-
 
 // Middleware de sanitização de dados
 export const sanitizeInput = (req: Request, res: Response, next: NextFunction) => {
