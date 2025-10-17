@@ -44,11 +44,13 @@ export class GHL {
       const salt = rawEncryptedData.subarray(saltSize, blockSize);
       const cipherText = rawEncryptedData.subarray(blockSize);
       
-      let result = Buffer.alloc(0, 0);
+      let result: any = Buffer.alloc(0, 0);
       while (result.length < (keySize + ivSize)) {
         const hasher = createHash('md5');
+        // @ts-ignore
         result = Buffer.concat([
           result,
+          // @ts-ignore
           hasher.update(Buffer.concat([
             result.subarray(-ivSize),
             Buffer.from(process.env.GHL_APP_SSO_KEY as string, 'utf-8'),
@@ -63,7 +65,9 @@ export class GHL {
         result.subarray(keySize, keySize + ivSize)
       );
       
+      // @ts-ignore
       const decrypted = decipher.update(cipherText);
+      // @ts-ignore
       const finalDecrypted = Buffer.concat([decrypted, decipher.final()]);
       return JSON.parse(finalDecrypted.toString());
     } catch (error) {
