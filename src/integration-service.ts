@@ -74,12 +74,17 @@ export class IntegrationService {
         // Tenta criar a instância se não existir
         const createResult = await evolutionService.createInstance();
         if (!createResult.success) {
-          await this.model.updateIntegrationStatus(resourceId, IntegrationStatus.Error);
-          return {
-            success: false,
-            message: 'Falha ao criar instância Evolution',
-            error: createResult.error
-          };
+          // Se a instância já existe (erro 403), considera como sucesso
+          if (createResult.error && createResult.error.includes('already in use')) {
+            console.log(`✅ Instância ${instanceName} já existe - continuando com integração`);
+          } else {
+            await this.model.updateIntegrationStatus(resourceId, IntegrationStatus.Error);
+            return {
+              success: false,
+              message: 'Falha ao criar instância Evolution',
+              error: createResult.error
+            };
+          }
         }
       }
 

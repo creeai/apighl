@@ -51,13 +51,13 @@ const app: Express = express();
 // ========================================
 // CONFIGURAÇÃO DE PROXY (para produção e desenvolvimento)
 // ========================================
-// Configuração mais específica do trust proxy para evitar conflitos com rate limiting
+// Configuração de proxy desabilitada para evitar conflitos com rate limiting
 if (process.env.NODE_ENV === 'development') {
-  app.set('trust proxy', 1); // Confia apenas no primeiro proxy (ngrok)
-  console.log('🔧 Modo desenvolvimento: proxy confiável limitado ativado para ngrok');
+  app.set('trust proxy', false); // Desabilita trust proxy para evitar conflitos
+  console.log('🔧 Modo desenvolvimento: trust proxy desabilitado para evitar conflitos');
 } else {
-  app.set('trust proxy', 1); // Confia apenas no primeiro proxy (load balancer)
-  console.log('🔧 Modo produção: proxy confiável limitado ativado para rate-limit');
+  app.set('trust proxy', false); // Desabilita trust proxy para evitar conflitos
+  console.log('🔧 Modo produção: trust proxy desabilitado para evitar conflitos');
 }
 
 // ========================================
