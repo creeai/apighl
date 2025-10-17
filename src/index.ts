@@ -805,6 +805,10 @@ app.post("/webhook/ghl",
           console.log("✅ Mensagem enviada com sucesso via Evolution API");
           
           // ✅ NOVO: Enviar dados para N8N se webhook configurado (OUTBOUND)
+          console.log(`🔍 Verificando webhook N8N para locationId: ${locationId}`);
+          console.log(`🔍 Webhook URL: ${installationDetails.n8nWebhookUrl}`);
+          console.log(`🔍 Webhook configurado: ${!!installationDetails.n8nWebhookUrl}`);
+          
           if (installationDetails.n8nWebhookUrl) {
             try {
               const n8nPayload = {
@@ -823,6 +827,7 @@ app.post("/webhook/ghl",
               };
               
               console.log(`📤 Enviando dados para N8N (OUTBOUND): ${installationDetails.n8nWebhookUrl}`);
+              console.log(`📤 Payload N8N:`, JSON.stringify(n8nPayload, null, 2));
               
               // Chamada assíncrona para N8N (não bloqueia o fluxo)
               axios.post(installationDetails.n8nWebhookUrl, n8nPayload, {
@@ -1417,6 +1422,10 @@ app.post("/webhook/evolution",
             console.log(`✅ Mensagem processada com sucesso para a instância correta: ${instanceName} -> ${resourceId}`);
             
             // ✅ NOVO: Enviar dados para N8N se webhook configurado (INBOUND)
+            console.log(`🔍 Verificando webhook N8N para instância: ${instanceName}`);
+            console.log(`🔍 Webhook URL: ${targetInstallation.n8nWebhookUrl}`);
+            console.log(`🔍 Webhook configurado: ${!!targetInstallation.n8nWebhookUrl}`);
+            
             if (targetInstallation.n8nWebhookUrl) {
               try {
                 const n8nPayload = {
@@ -1436,6 +1445,7 @@ app.post("/webhook/evolution",
                 };
                 
                 console.log(`📤 Enviando dados para N8N (INBOUND): ${targetInstallation.n8nWebhookUrl}`);
+                console.log(`📤 Payload N8N:`, JSON.stringify(n8nPayload, null, 2));
                 
                 // Chamada assíncrona para N8N (não bloqueia o fluxo)
                 axios.post(targetInstallation.n8nWebhookUrl, n8nPayload, {
