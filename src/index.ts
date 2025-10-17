@@ -1757,6 +1757,7 @@ app.get("/integration/installations",
           integrationStatus: inst.integrationStatus,
           evolutionInstanceName: inst.evolutionInstanceName,
           conversationProviderId: inst.conversationProviderId,
+          n8nWebhookUrl: inst.n8nWebhookUrl, // ✅ NOVO: Incluir webhook N8N
           scope: inst.scope,
           expiresIn: inst.expires_in,
           lastSyncAt: inst.lastSyncAt,
@@ -1772,6 +1773,85 @@ app.get("/integration/installations",
       success: false,
       message: 'Erro interno ao listar instalações',
       error: error.message
+    });
+  }
+});
+
+// ✅ NOVO: Endpoint para testar webhook N8N
+app.post("/integration/test-n8n-webhook", 
+  ghlCredentialsValidator.validateGHLCredentials,
+  async (req: Request, res: Response) => {
+  try {
+    const { resourceId } = req.body;
+    
+    if (!resourceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Resource ID é obrigatório'
+      });
+    }
+
+    // Buscar instalação
+    const installationDetails = await ghl.model.getInstallationInfo(resourceId);
+    if (!installationDetails) {
+      return res.status(404).json({
+        success: false,
+        message: 'Instalação não encontrada'
+      });
+    }
+
+    if (!installationDetails.n8nWebhookUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Webhook N8N não configurado para esta instalação'
+      });
+    }
+
+    // Criar payload de teste
+    const testPayload = {
+      type: 'test',
+      direction: 'test_webhook',
+      resourceId,
+      instanceName: installationDetails.evolutionInstanceName,
+      message: 'Teste de webhook N8N',
+      timestamp: new Date().toISOString(),
+      test: true
+    };
+
+    console.log(`🧪 Testando webhook N8N: ${installationDetails.n8nWebhookUrl}`);
+    
+    // Enviar teste para N8N
+    const response = await axios.post(installationDetails.n8nWebhookUrl, testPayload, {
+      timeout: 10000,
+      headers: { 
+        'Content-Type': 'application/json',
+        'User-Agent': 'GHL-Evolution-Integration/2.0.0'
+      }
+    });
+
+    console.log(`✅ Teste webhook N8N enviado com sucesso:`, response.status);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Teste de webhook N8N enviado com sucesso',
+      data: {
+        webhookUrl: installationDetails.n8nWebhookUrl,
+        status: response.status,
+        response: response.data
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao testar webhook N8N:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao testar webhook N8N',
+      error: error.message,
+      details: {
+        code: error.code,
+        response: error.response?.data,
+        status: error.response?.status
+      }
     });
   }
 });
